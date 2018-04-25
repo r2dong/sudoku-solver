@@ -16,6 +16,14 @@ with
       let rows = [origin .. (origin + b.size - 1)] in
       let cols = [for j in 0 .. 8 -> col + j * b.size]
       List.concat [rows; cols]
+  member b.getCell i =
+    // use List.find
+  member b.getCellAttacks i =
+    let inds = b.getInd i in
+    let inds = List.filter (fun num -> num <> i) inds in
+    let isAttack i j =
+      
+    List.fold 
 
 // test getInd
 let tb = {
