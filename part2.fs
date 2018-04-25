@@ -6,6 +6,16 @@ type SudokuBoard = {
   size: int
 }
 with
+  static member Construct s c =
+    let f n (_, value) = if value >= s then n + 1 else n in
+    if List.fold f 0 c >= 0
+      then failwith "invalid cell value"
+    else
+      {
+        clues = c
+        size = s
+        fills = []
+      }
   member b.getInd i =
     if i >= b.size * b.size || i < 0
       then failwith "invalid index"
@@ -16,7 +26,10 @@ with
       let rows = [origin .. (origin + b.size - 1)] in
       let cols = [for j in 0 .. 8 -> col + j * b.size]
       List.concat [rows; cols]
-  member b.getCell i =
+  (*
+  member b.isFilled i =
+    
+  member b.getCell i = List.find
     // use List.find
   member b.getCellAttacks i =
     let inds = b.getInd i in
@@ -24,11 +37,11 @@ with
     let isAttack i j =
       
     List.fold 
-
+  *)
 // test getInd
 let tb = {
-  fills = [];
-  size = 9;
-  clues = [];
+  fills = []
+  size = 9
+  clues = []
 }
 let r = tb.getInd 20
