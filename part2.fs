@@ -33,15 +33,11 @@ with
         size = s
         size' = s'
       }
-  (*
-  all cells in sorted order
-  *)
+  (* all cells in sorted order *)
   member b.allCells = 
     let ac = List.concat [b.clues; b.fills] in 
     List.sortBy (fun (ind, _) -> ind) ac
-  (*
-  get indicies of all cells that may attack that with index i
-  *)
+  (* indicies of all cells that may attack that with index i *)
   member b.getInd i =
     if i >= b.size * b.size || i < 0
       then failwith "invalid index"
@@ -58,22 +54,16 @@ with
                       [for j in 0 .. b.size' - 1 -> i + j * b.size]
                     ]
       List.distinct (List.concat [rows; cols; List.concat squares])
-  (*
-  check if cell with index i is empty
-  *)
+  (* check if cell with index i is empty *)
   member b.isFilled i = match b.getCell i with (_, v) -> v <> 0
-  (*
-  retrieve a particular cell with index i
-  *)
+  (* retrieve a particular cell with index i *)
   member b.getCell i = 
     let l = List.filter (fun (i', _) -> i = i') b.allCells in
     if l.Length <> 1 then
       failwith "cells have duplicate index!"
     else
       List.item 0 l
-  (*
-  calculate attacks on cell with index i
-  *)
+  (* calculate attacks on cell with index i *)
   member b.getCellAttacks i =
     match b.isFilled i with
       false -> 0
@@ -85,6 +75,10 @@ with
         let (_, v2) = b.getCell j in
         if v1 = 0 || v2 = 0 then 0 else (if v1 = v2 then 1 else 0)
       List.fold (fun s j -> s + isAttack i j) 0 inds
+  (* total number of attacks on this board *)
+  member b.getAttacks = 
+    let allInds = [for i in 0 .. b.size * b.size - 1 -> i] in
+    List.fold (fun n i -> n + b.getCellAttacks i) 0 allInds
   (* set value of cell with index i to v *)
   member b.set i v =
     if i >= b.size * b.size then
@@ -99,6 +93,7 @@ with
       SudokuBoard.construct b.size' b.clues nf
   (* list of indices of all clues *)
   member b.getClueInds = List.fold (fun l (i, _) -> i :: l) [] b.clues
+  (* fitness function *)
   (*
   print board to console
   // TODO print borders dividing squares
@@ -211,10 +206,13 @@ let g2 = w4.getCell 27 // 1
 let g3 = w4.getCell 0 // 1
 let g4 = w4.getCell 79 // 5
 
-// test getAttacks
+// test getCellAttacks
 let a1 = w4.getCellAttacks 0 // 1
 let w5 = w4.set 76 1
 let a2 = w5.getCellAttacks 76 // 2
+
+// test getAttacks
+let a3 = w5.getAttacks
 
 // test randBoard
 let rand1 = randBoard 3 ws301Clues
