@@ -11,42 +11,32 @@ with
     construct a new sudoku board 
     s': size ^ 0.5 of the board, must be integer
     c: clues
+    f: cells already filled
   *)
-  static member construct s' c =
+  static member construct s' c f =
     let s = s' * s' in
-    let f n (_, value) = if value > s then n + 1 else n in
-    if List.fold f 0 c > 0
-      then failwith "invalid cell value"
+    let m = s * s in
+    if List.fold (fun n (_, v) -> if v > s then n + 1 else n) 0 c > 0 then
+      failwith "invalid cell value"
+    elif List.fold (fun n (i, _) -> if i >= m then n + 1 else n) 0 c > 0 then
+      failwith "invalid cell index"
     else
-      let f n (ind, _) = if ind >= s * s then n + 1 else n in
-      if List.fold f 0 c > 0
-        then failwith "invalid cell index"
-      else
-        let f l (ind, _) = ind :: l
-        let nonEmpty = List.fold f [] c in
-        let rec genEmpty s nEmp =
-          match s with
-            -1 -> []
-          | s' -> 
-            let res = genEmpty (s - 1) nEmp in
-              if List.contains s' nEmp then
-                res
-              else
-                (s', 0) :: res
-        in
-        let empties = genEmpty ((s * s) - 1) nonEmpty in
-        {
-          clues = c
-          fills = empties
-          size = s
-          size' = s'
-        }
+      let ac = List.concat [c; f] in
+      let ne = List.fold (fun l (ind, _) -> ind :: l) [] ac in
+      let foldFun l i' = if List.contains i' ne then l else (i', 0) :: l in
+      let e = List.fold foldFun [] [for i in 0 .. m - 1 -> i]
+      {
+        clues = c
+        fills = List.concat [e; f]
+        size = s
+        size' = s'
+      }
   (*
   all cells in sorted order
   *)
   member b.allCells = 
-    let allCells = List.concat [b.clues; b.fills] in
-    List.sortBy (fun (ind, _) -> ind) allCells
+    let ac = List.concat [b.clues; b.fills] in 
+    List.sortBy (fun (ind, _) -> ind) ac
   (*
   get indicies of all cells that may attack that with index i
   *)
@@ -65,35 +55,20 @@ with
       let squares = [for i in upperLeft .. upperLeft + b.size' - 1 -> 
                       [for j in 0 .. b.size' - 1 -> i + j * b.size]
                     ]
-      List.concat [rows; cols; List.concat squares]
+      List.distinct (List.concat [rows; cols; List.concat squares])
   (*
   check if cell with index i is empty
   *)
-  member b.isFilled i =
-    let rec isFilledHelp i cells =
-      match cells with
-        (ind, value) :: res -> 
-          if ind = i then
-            value = 0
-          else
-            isFilledHelp i res
-      | [] -> failwith "index not found, please double check"
-    in
-    isFilledHelp i b.allCells
+  member b.isFilled i = match b.getCell i with (_, v) -> v <> 0
   (*
   retrieve a particular cell with index i
   *)
-  member b.getCell i =
-    let rec gcHelp i ac =
-      match ac with
-        (ind, value) :: res ->
-          if ind = i then
-            (ind, value)
-          else
-            gcHelp i res
-        | [] -> failwith "cannot get cell, please double check"
-    in
-    gcHelp i b.allCells
+  member b.getCell i = 
+    let l = List.filter (fun (i', _) -> i = i') b.allCells in
+    if l.Length <> 1 then
+      failwith "cells have duplicate index!"
+    else
+      List.item 0 l
   (*
   calculate attacks on cell with index i
   *)
@@ -101,31 +76,40 @@ with
     match b.isFilled i with
       false -> 0
     | _ ->
-      let inds = b.getInd i in
-      let inds = List.filter (fun num -> num <> i) inds in
+      let inds' = b.getInd i in
+      let inds = List.filter (fun num -> num <> i) inds' in
       let isAttack i j =
         let (_, v1) = b.getCell i in
         let (_, v2) = b.getCell j in
-        v1 = v2
-      let accFun s j =
-        if isAttack i j then
-          s + 1
-        else
-          s
-      in
-      List.fold accFun 0 inds
+        if v1 = 0 || v2 = 0 then 0 else (if v1 = v2 then 1 else 0)
+      List.fold (fun s j -> s + isAttack i j) 0 inds
+  (* set value of cell with index i to v *)
+  member b.set i v =
+    if i >= b.size * b.size then
+      failwith "invalid index"
+    elif v > b.size then
+      failwith "invalid value"
+    elif List.contains i b.getClueInds then
+      failwith "cannot modify a clue cell"
+    else
+      let fFun l (i', v') = if i' = i then (i', v) :: l else (i', v') :: l in
+      let nf = List.fold fFun [] b.fills in
+      SudokuBoard.construct b.size' b.clues nf
+  (* list of indices of all clues *)
+  member private b.getClueInds = List.fold (fun l (i, _) -> i :: l) [] b.clues
   (*
   print board to console
+  // TODO print borders dividing squares
   *)
   member b.print = 
     let rec printHelp (ac: Cell list) =
       match ac with
-        (ind, value) :: res -> 
-          if ind % b.size = 0 then
-            let s = String.concat "" ["\n"; (string value); " "] in
+        (i, v) :: res -> 
+          if i % b.size = 0 then
+            let s = String.concat "" ["\n"; (string v); " "] in
             let _ = printf "%s" s in printHelp res
           else
-            let s = String.concat "" [string value; " "] in
+            let s = String.concat "" [string v; " "] in
             let _ = printf "%s" s in printHelp res
       | [] -> printf "\n"
     in
@@ -143,7 +127,7 @@ let tb2 = {
 printf "%d\n" tb2.allCells.Length
 *)
 
-// test construct
+// test construct and print
 let ws301Clues = [
   (1, 3);
   (2, 9);
@@ -169,13 +153,37 @@ let ws301Clues = [
   (77, 1);
   (80, 8);
 ]
-let ws301 = SudokuBoard.construct 3 ws301Clues
+let ws301 = SudokuBoard.construct 3 ws301Clues []
 ws301.print
 
 // test getInd
-ws301.getInd 54
+let r = ws301.getInd 54
+let r3 = ws301.getInd 70
 
 // test allCells
-ws301.allCells
+let r1 = ws301.allCells
 
-// test ifFilled
+// test setCell
+let w1 = ws301.set 0 1
+w1.print
+// let w2 = w1.set 80 1 // should fail
+// let w3 = w1.set 79 10 // should fail
+let w4 = w1.set 79 5
+w4.print
+
+// test isFilled
+let b1 = w4.isFilled 59 // true
+let b2 = w4.isFilled 80 // true
+let b3 = w4.isFilled 79 // true
+let b4 = w4.isFilled 78 // false
+
+// test getCell
+let g1 = w4.getCell 64 // 1
+let g2 = w4.getCell 27 // 1
+let g3 = w4.getCell 0 // 1
+let g4 = w4.getCell 79 // 5
+
+// test getAttacks
+let a1 = w4.getCellAttacks 0 // 1
+let w5 = w4.set 76 1
+let a2 = w5.getCellAttacks 76 // 2
