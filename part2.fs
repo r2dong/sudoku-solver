@@ -56,6 +56,10 @@ with
       List.distinct (List.concat [rows; cols; List.concat squares])
   (* check if cell with index i is empty *)
   member b.isFilled i = match b.getCell i with (_, v) -> v <> 0
+  (* #cells filled *)
+  member b.numFilled = 
+    let foldFun n (i, _) = if b.isFilled i then n + 1 else n in
+    List.fold foldFun 0 b.fills
   (* retrieve a particular cell with index i *)
   member b.getCell i = 
     let l = List.filter (fun (i', _) -> i = i') b.allCells in
@@ -76,9 +80,13 @@ with
         if v1 = 0 || v2 = 0 then 0 else (if v1 = v2 then 1 else 0)
       List.fold (fun s j -> s + isAttack i j) 0 inds
   (* total number of attacks on this board *)
-  member b.getAttacks = 
+  member b.allAttacks = 
     let allInds = [for i in 0 .. b.size * b.size - 1 -> i] in
     List.fold (fun n i -> n + b.getCellAttacks i) 0 allInds
+  (* attacks on only non-clue cells *)
+  member b.allFillAttacks =
+    let fillFun n i = n + b.getCellAttacks i in
+    List.fold fillFun 0 b.getFillInds
   (* set value of cell with index i to v *)
   member b.set i v =
     if i >= b.size * b.size then
@@ -93,7 +101,14 @@ with
       SudokuBoard.construct b.size' b.clues nf
   (* list of indices of all clues *)
   member b.getClueInds = List.fold (fun l (i, _) -> i :: l) [] b.clues
+  member b.getFillInds = List.fold (fun l (i, _) -> i :: l) [] b.fills
   (* fitness function *)
+  member b.fitness = 
+    let maxCellAttack = (b.size * 2 + (b.size' - 1) * (b.size' - 1) - 2) in
+    let maxTotalAttack = maxCellAttack * b.fills.Length * b.fills.Length in
+    let ar = float b.allFillAttacks / float maxTotalAttack in
+    let fr = float b.numFilled / float (b.size * b.size - b.clues.Length)
+    let raw = 1.0 - ar - (1.0 - fr) in if raw < 0.0 then 0.0 else raw
   (*
   print board to console
   // TODO print borders dividing squares
@@ -114,9 +129,7 @@ with
 
 let mutable Rand = System.Random ()
 
-(*
-generate a random borad with s' and clues c, other cells are filled randomly
-*)
+(* generate a random borad with s' and clues c *)
 let randBoard s' (c: Cell list) =
   let b = SudokuBoard.construct s' c [] in
   let s = s' * s' in
@@ -212,9 +225,12 @@ let w5 = w4.set 76 1
 let a2 = w5.getCellAttacks 76 // 2
 
 // test getAttacks
-let a3 = w5.getAttacks
+let a3 = w5.allAttacks
 
 // test randBoard
 let rand1 = randBoard 3 ws301Clues
 rand1.print
 rand1.allCells
+
+// test fitness function
+rand1.fitness
