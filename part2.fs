@@ -16,7 +16,9 @@ with
   static member construct s' c f =
     let s = s' * s' in
     let m = s * s in
-    if List.fold (fun n (_, v) -> if v > s then n + 1 else n) 0 c > 0 then
+    if s' < 2 then
+      failwith "board size must be at least 2 ^ 2"
+    elif List.fold (fun n (_, v) -> if v > s then n + 1 else n) 0 c > 0 then
       failwith "invalid cell value"
     elif List.fold (fun n (i, _) -> if i >= m then n + 1 else n) 0 c > 0 then
       failwith "invalid cell index"
@@ -96,13 +98,13 @@ with
       let nf = List.fold fFun [] b.fills in
       SudokuBoard.construct b.size' b.clues nf
   (* list of indices of all clues *)
-  member private b.getClueInds = List.fold (fun l (i, _) -> i :: l) [] b.clues
+  member b.getClueInds = List.fold (fun l (i, _) -> i :: l) [] b.clues
   (*
   print board to console
   // TODO print borders dividing squares
   *)
   member b.print = 
-    let rec printHelp (ac: Cell list) =
+    let rec printHelp ac =
       match ac with
         (i, v) :: res -> 
           if i % b.size = 0 then
@@ -115,6 +117,29 @@ with
     in
     printHelp b.allCells
 
+let mutable Rand = System.Random ()
+
+(*
+generate a random borad with s' and clues c, other cells are filled randomly
+*)
+let randBoard s' (c: Cell list) =
+  let b = SudokuBoard.construct s' c [] in
+  let s = s' * s' in
+  let maxIter = s * s - c.Length in
+  let maxInd = s * s - 1 in
+  let maxVal = s in
+  let rec findInd n l l' =
+    match n with
+      0 -> l
+    | _ -> 
+      let ni = Rand.Next (0, maxInd + 1) in
+        if List.contains ni l' then
+          findInd (n - 1) l l'
+        else
+          findInd (n - 1) ((ni, Rand.Next(0, maxVal + 1)) :: l) (ni :: l')
+  in
+  SudokuBoard.construct s' c (findInd maxIter [] b.getClueInds)
+    
 // tests
 (*
 
@@ -156,6 +181,9 @@ let ws301Clues = [
 let ws301 = SudokuBoard.construct 3 ws301Clues []
 ws301.print
 
+let ws301' = SudokuBoard.construct 3 ws301Clues [(18, 1); (54, 8); (79, 4); (53, 9)]
+ws301'.print
+
 // test getInd
 let r = ws301.getInd 54
 let r3 = ws301.getInd 70
@@ -187,3 +215,8 @@ let g4 = w4.getCell 79 // 5
 let a1 = w4.getCellAttacks 0 // 1
 let w5 = w4.set 76 1
 let a2 = w5.getCellAttacks 76 // 2
+
+// test randBoard
+let rand1 = randBoard 3 ws301Clues
+rand1.print
+rand1.allCells
