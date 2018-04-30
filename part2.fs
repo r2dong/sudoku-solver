@@ -121,18 +121,21 @@ with
   member b.fitness = 
     let maxCellAttack = (b.size * 2 + (b.size' - 1) * (b.size' - 1) - 2) in
     let maxTotalAttack = maxCellAttack * b.fills.Length * b.fills.Length in
-    let ar = float b.allFillAttacks / float maxTotalAttack in
-    let fr = float b.numFilled / float (b.size * b.size - b.clues.Length)
-    let raw = 1.0 - ar - (1.0 - fr) in if raw < 0.0 then 0.0 else raw
+    let fr = float b.numFilled / float (b.size * b.size - b.clues.Length) in
+    float (maxCellAttack - b.allAttacks) * fr
   (* mutate: change a non-clue cell to any valid nubmer or empty (0) *)
   member b.mutate =
     if b.fills.Length < 1 then
       b
     else
-      let i' = Rand.Next(0, b.fills.Length) in
-      let (i, _) = List.item i' b.fills in
-      let v = Rand.Next(0, b.size + 1) in
-      b.set i v
+      let rec mutate' n b' =
+        let i' = Rand.Next(0, b.fills.Length) in
+        let (i, _) = List.item i' b.fills in
+        let v = Rand.Next(0, b.size + 1) in
+        match n with
+        | 0 -> b'
+        | _ -> mutate' (n - 1) (b.set i v)
+      in mutate' (b.size' * b.size') b
   (*
   print board to console
   // TODO print borders dividing squares
@@ -190,8 +193,7 @@ let select (pop: SudokuBoard list) =
           | _ -> x :: slice xs (n - 1)
       | [] -> []
     in
-    let n' = (List.head pop).size * (List.head pop).size in
-    slice s n'
+    slice s (pop.Length / 2)
 
 (* 
 mate the selected population into #pairs equal to its size
@@ -219,7 +221,7 @@ let rec crossOver p =
     List.fold2 randChoose [] f1 f2
   in
   let rec crossOver' p' =
-    match p with
+    match p' with
       (b1', b2') :: xs -> 
         let nextChild = SudokuBoard.construct b1'.size' b1'.clues (genFill (b1', b2')) in 
           nextChild :: crossOver xs
@@ -230,15 +232,10 @@ let rec crossOver p =
 reproduce once with the given population 
 *)
 let reproduce p =
-  let p' = select p in
-  let pairs = pair p' in
-  let newPop = crossOver pairs in
-  let rec mutate' (p: SudokuBoard list) =
-    match p with
-    | x :: xs -> x.mutate :: mutate' xs
-    | [] -> []
-  in
-  mutate' newPop
+  let pairs = pair (select p) in
+  // each parent produce two children, so our specie does not go extinct
+  List.concat [crossOver pairs; crossOver pairs]
+
 
 (*
 run genetic algorithm
@@ -263,14 +260,19 @@ let genetic l n s' c =
           findSolution xs
       | [] -> None
     in
+    let rec mutate' (p: SudokuBoard list) =
+      match p with
+      | x :: xs -> x.mutate :: mutate' xs
+      | [] -> []
+    in
     let rec repeat n p =
-      let _ = printfn "%d round of repeat remaining" n
+      let _ = printfn "%d rounds remaining" n
       let s = findSolution p in
       match n with
         | 0 -> s
         | _ ->
           match s with
-          | None -> repeat (n - 1) (reproduce p)
+          | None -> repeat (n - 1) (reproduce (mutate' p))
           | q -> q
     in
     repeat l p
@@ -413,4 +415,8 @@ rand1.fitness
 let b = SudokuBoard.construct 3 solved []
 b.print
 
-let ans = genetic 100 10 3 almostSolved
+let ans = genetic 1000 10 3 easy1
+
+// TODO: check solution before reproduce
+// TODO: increase rate of mutation
+// TODO: 100 roudns of iteration may still be small
