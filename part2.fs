@@ -1,3 +1,6 @@
+let mutable Rand = System.Random ()
+open System.Web.Services.Description
+
 type Cell = int * int
 
 type SudokuBoard = {
@@ -60,6 +63,16 @@ with
   member b.numFilled = 
     let foldFun n (i, _) = if b.isFilled i then n + 1 else n in
     List.fold foldFun 0 b.fills
+  (* test if the board is completely filled *)
+  member b.isAllFilled =
+    let rec f l =
+      match l with
+      | (_, v) :: xs -> if v = 0 then false else f xs
+      | [] -> true
+    in
+    f b.fills
+  (* test if this board is correctly solved *)
+  member b.isSolved = b.isAllFilled && (b.allAttacks = 0)
   (* retrieve a particular cell with index i *)
   member b.getCell i = 
     let l = List.filter (fun (i', _) -> i = i') b.allCells in
@@ -78,6 +91,7 @@ with
         let (_, v1) = b.getCell i in
         let (_, v2) = b.getCell j in
         if v1 = 0 || v2 = 0 then 0 else (if v1 = v2 then 1 else 0)
+      in
       List.fold (fun s j -> s + isAttack i j) 0 inds
   (* total number of attacks on this board *)
   member b.allAttacks = 
@@ -101,6 +115,7 @@ with
       SudokuBoard.construct b.size' b.clues nf
   (* list of indices of all clues *)
   member b.getClueInds = List.fold (fun l (i, _) -> i :: l) [] b.clues
+  (* list of indices of all non-clue cells *)
   member b.getFillInds = List.fold (fun l (i, _) -> i :: l) [] b.fills
   (* fitness function *)
   member b.fitness = 
@@ -109,6 +124,15 @@ with
     let ar = float b.allFillAttacks / float maxTotalAttack in
     let fr = float b.numFilled / float (b.size * b.size - b.clues.Length)
     let raw = 1.0 - ar - (1.0 - fr) in if raw < 0.0 then 0.0 else raw
+  (* mutate: change a non-clue cell to any valid nubmer or empty (0) *)
+  member b.mutate =
+    if b.fills.Length < 1 then
+      b
+    else
+      let i' = Rand.Next(0, b.fills.Length) in
+      let (i, _) = List.item i' b.fills in
+      let v = Rand.Next(0, b.size + 1) in
+      b.set i v
   (*
   print board to console
   // TODO print borders dividing squares
@@ -126,8 +150,6 @@ with
       | [] -> printf "\n"
     in
     printHelp b.allCells
-
-let mutable Rand = System.Random ()
 
 (* generate a random borad with s' and clues c *)
 let randBoard s' (c: Cell list) =
@@ -147,21 +169,117 @@ let randBoard s' (c: Cell list) =
           findInd (n - 1) ((ni, Rand.Next(0, maxVal + 1)) :: l) (ni :: l')
   in
   SudokuBoard.construct s' c (findInd maxIter [] b.getClueInds)
-    
-// tests
-(*
 
-// test all Cells
-let tb2 = {
-  fills = [(0, 1); (2, 2); (3, 1)]
-  clues = [(1, 2)]
-  size = 2
-}
-printf "%d\n" tb2.allCells.Length
+(* genenrate n random boards *)
+let rec randBoards n s' c =
+  match n with
+  | 0 -> []
+  | _ -> randBoard s' c :: randBoards (n - 1) s' c
+
+(* select upto size ^ 2 individuals from a population *)
+let select (pop: SudokuBoard list) =
+  if pop.Length < 1 then
+    []
+  else
+    let s = List.sortByDescending (fun (b: SudokuBoard) -> b.fitness) pop in
+    let rec slice l n =
+      match l with
+        x :: xs ->
+          match n with
+            0 -> []
+          | _ -> x :: slice xs (n - 1)
+      | [] -> []
+    in
+    let n' = (List.head pop).size * (List.head pop).size in
+    slice s n'
+
+(* 
+mate the selected population into #pairs equal to its size
+the fittest will appear in each pair
 *)
+let pair (l: SudokuBoard list) =
+  let fittest = List.maxBy (fun (b: SudokuBoard) -> b.fitness) l in
+  let pair' _ =
+    let ni = Rand.Next(0, l.Length) in
+    let spouse = List.item ni l in
+    (fittest, spouse)
+  in 
+  List.map pair' l
+
+(*
+takes a list of paired boards and do crossover
+each cell has equal probability to inherit from both parents
+each pair produces only 1 parent
+*)
+let rec crossOver p =
+  let rec genFill (b1, b2) =
+    let f1 = List.sortBy (fun (i, _) -> i) b1.fills in
+    let f2 = List.sortBy (fun (i, _) -> i) b2.fills in
+    let randChoose l a b = if Rand.Next(0, 2) = 0 then a :: l else b :: l in
+    List.fold2 randChoose [] f1 f2
+  in
+  let rec crossOver' p' =
+    match p with
+      (b1', b2') :: xs -> 
+        let nextChild = SudokuBoard.construct b1'.size' b1'.clues (genFill (b1', b2')) in 
+          nextChild :: crossOver xs
+    | [] -> []
+  crossOver' p
+
+(* 
+reproduce once with the given population 
+*)
+let reproduce p =
+  let p' = select p in
+  let pairs = pair p' in
+  let newPop = crossOver pairs in
+  let rec mutate' (p: SudokuBoard list) =
+    match p with
+    | x :: xs -> x.mutate :: mutate' xs
+    | [] -> []
+  in
+  mutate' newPop
+
+(*
+run genetic algorithm
+l: maximum iteration limit
+n: size of initial population
+s': size ^ 0.5 of boards
+c: clues
+*)
+let genetic l n s' c =
+  if l < 1 then
+    failwith "iteration limit must be larger than 1"
+  elif n < 0 then
+    failwith "initial population size must not be empty"
+  else
+    let p = randBoards n s' c in 
+    let rec findSolution (p: SudokuBoard list) =
+      match p with
+      | x :: xs ->
+        if x.isSolved then
+          Some x
+        else
+          findSolution xs
+      | [] -> None
+    in
+    let rec repeat n p =
+      let _ = printfn "%d round of repeat remaining" n
+      let s = findSolution p in
+      match n with
+        | 0 -> s
+        | _ ->
+          match s with
+          | None -> repeat (n - 1) (reproduce p)
+          | q -> q
+    in
+    repeat l p
+
+
+// tests
 
 // test construct and print
-let ws301Clues = [
+let ws301 = [
   (1, 3);
   (2, 9);
   (3, 5);
@@ -186,6 +304,61 @@ let ws301Clues = [
   (77, 1);
   (80, 8);
 ]
+
+let easy1 = [
+  (0, 2);
+  (3, 8);
+  (4, 1);
+  (5, 6);
+  (6, 4);
+  (10, 5);
+  (14, 3);
+  (18, 7);
+  (20, 6);
+  (21, 5);
+  (22, 9);
+  (24, 3);
+  (29, 9);
+  (30, 1);
+  (31, 7);
+  (33, 2);
+  (37, 3);
+  (38, 5);
+  (42, 1);
+  (43, 4);
+  (47, 7);
+  (49, 4);
+  (50, 5);
+  (51, 9);
+  (56, 8);
+  (58, 3);
+  (59, 7);
+  (60, 6);
+  (62, 4);
+  (66, 4);
+  (70, 8);
+  (74, 4);
+  (75, 6);
+  (76, 8);
+  (77, 2);
+  (80, 1);
+]
+
+let solvedRaw = [
+  3; 8; 6; 7; 4; 1; 2; 5; 9;
+  2; 5; 4; 3; 9; 8; 7; 1; 6;
+  7; 1; 9; 6; 5; 2; 3; 8; 4;
+  6; 2; 8; 5; 7; 3; 9; 4; 1;
+  5; 3; 7; 4; 1; 9; 6; 2; 8;
+  4; 9; 1; 8; 2; 6; 5; 7; 3;
+  1; 4; 5; 9; 6; 7; 8; 3; 2;
+  9; 7; 3; 2; 8; 4; 1; 6; 5;
+  8; 6; 2; 1; 3; 5; 4; 9; 7;
+]
+let solved = [for i in 0 .. 80 -> (i, List.item i solvedRaw)]
+let almostSolved = [for i in 0 .. 74 -> (i, List.item i solvedRaw)]
+
+(*
 let ws301 = SudokuBoard.construct 3 ws301Clues []
 ws301.print
 
@@ -234,3 +407,10 @@ rand1.allCells
 
 // test fitness function
 rand1.fitness
+*)
+
+// let ans = genetic 10 10 3 ws301
+let b = SudokuBoard.construct 3 solved []
+b.print
+
+let ans = genetic 100 10 3 almostSolved
