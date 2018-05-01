@@ -1,5 +1,4 @@
 let mutable Rand = System.Random ()
-open System.Web.Services.Description
 
 type Cell = int * int
 
@@ -30,9 +29,11 @@ with
       let ne = List.fold (fun l (ind, _) -> ind :: l) [] ac in
       let foldFun l i' = if List.contains i' ne then l else (i', 0) :: l in
       let e = List.fold foldFun [] [for i in 0 .. m - 1 -> i]
+      let c' = List.sortBy (fun (i, _) -> i) c
+      let f' = List.sortBy (fun (i, _) -> i) (e @ f)
       {
-        clues = c
-        fills = List.concat [e; f]
+        clues = c'
+        fills = f'
         size = s
         size' = s'
       }
@@ -119,11 +120,14 @@ with
   member b.getFillInds = List.fold (fun l (i, _) -> i :: l) [] b.fills
   (* fitness function *)
   member b.fitness = 
+    (*
     let maxCellAttack = (b.size * 2 + (b.size' - 1) * (b.size' - 1) - 2) in
-    let maxTotalAttack = maxCellAttack * b.fills.Length * b.fills.Length in
     let fr = float b.numFilled / float (b.size * b.size - b.clues.Length) in
-    float (maxCellAttack - b.allAttacks) * fr
-  (* mutate: change a non-clue cell to any valid nubmer or empty (0) *)
+    *)
+    b.numFilled - b.allAttacks - (b.fills.Length - b.numFilled) * ((b.size' - 1) * (b.size' - 1) + 2 * (b.size - 1))
+  (* 
+  mutate: change a non-clue cell to any valid number
+  *)
   member b.mutate =
     if b.fills.Length < 1 then
       b
@@ -135,7 +139,7 @@ with
         match n with
         | 0 -> b'
         | _ -> mutate' (n - 1) (b.set i v)
-      in mutate' (b.size' * b.size') b
+      in mutate' 1 b
   (*
   print board to console
   // TODO print borders dividing squares
@@ -161,6 +165,7 @@ let randBoard s' (c: Cell list) =
   let maxIter = s * s - c.Length in
   let maxInd = s * s - 1 in
   let maxVal = s in
+  (*
   let rec findInd n l l' =
     match n with
       0 -> l
@@ -169,9 +174,15 @@ let randBoard s' (c: Cell list) =
         if List.contains ni l' then
           findInd (n - 1) l l'
         else
-          findInd (n - 1) ((ni, Rand.Next(0, maxVal + 1)) :: l) (ni :: l')
+          findInd (n - 1) ((ni, Rand.Next(1, maxVal + 1)) :: l) (ni :: l')
   in
-  SudokuBoard.construct s' c (findInd maxIter [] b.getClueInds)
+  *)
+  let rec randFill inds =
+    match inds with
+    | [] -> []
+    | x :: xs -> (x, Rand.Next (1, maxVal + 1)) :: randFill xs
+  in
+  SudokuBoard.construct s' c (randFill b.getFillInds)
 
 (* genenrate n random boards *)
 let rec randBoards n s' c =
@@ -200,6 +211,15 @@ mate the selected population into #pairs equal to its size
 the fittest will appear in each pair
 *)
 let pair (l: SudokuBoard list) =
+  let rec genPair n =
+    let i1 = Rand.Next (0, l.Length) in
+    let i2 = Rand.Next (0, l.Length) in
+    match n with
+    | 0 -> []
+    | _ -> (List.item i1 l, List.item i2 l) :: genPair (n - 1)
+  in
+  genPair l.Length
+  (*
   let fittest = List.maxBy (fun (b: SudokuBoard) -> b.fitness) l in
   let pair' _ =
     let ni = Rand.Next(0, l.Length) in
@@ -207,6 +227,8 @@ let pair (l: SudokuBoard list) =
     (fittest, spouse)
   in 
   List.map pair' l
+  *)
+
 
 (*
 takes a list of paired boards and do crossover
@@ -215,10 +237,10 @@ each pair produces only 1 parent
 *)
 let rec crossOver p =
   let rec genFill (b1, b2) =
-    let f1 = List.sortBy (fun (i, _) -> i) b1.fills in
-    let f2 = List.sortBy (fun (i, _) -> i) b2.fills in
+    // let f1 = List.sortBy (fun (i, _) -> i) b1.fills in
+    // let f2 = List.sortBy (fun (i, _) -> i) b2.fills in
     let randChoose l a b = if Rand.Next(0, 2) = 0 then a :: l else b :: l in
-    List.fold2 randChoose [] f1 f2
+    List.fold2 randChoose [] b1.fills b2.fills
   in
   let rec crossOver' p' =
     match p' with
@@ -267,6 +289,12 @@ let genetic l n s' c =
     in
     let rec repeat n p =
       let _ = printfn "%d rounds remaining" n
+      let rec printBoards (boards: SudokuBoard list) =
+        match boards with
+        | x :: xs -> let _ = x.print in printBoards xs
+        | [] -> ()
+      in
+      let _ = printBoards p in
       let s = findSolution p in
       match n with
         | 0 -> s
@@ -415,7 +443,7 @@ rand1.fitness
 let b = SudokuBoard.construct 3 solved []
 b.print
 
-let ans = genetic 1000 10 3 easy1
+//let ans = genetic 1000 10 3 easy1
 
 // TODO: check solution before reproduce
 // TODO: increase rate of mutation
