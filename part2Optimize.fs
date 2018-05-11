@@ -40,6 +40,7 @@ with
               findFills (i - 1) xs fIds 
             else
               findFills (i - 1) (x :: xs) (i :: fIds)
+          | [] -> findFills (i - 1) [] (i :: fIds)
       in
       let fills = findFills (m - 1) clues [] in
       {
@@ -137,44 +138,37 @@ with
   // TODO print borders dividing squares
   *)
   member b.print = 
-    let rec printHelp ac =
+    let rec printHelp ac i =
       match ac with
-        (i, v) :: res -> 
+        v :: vs -> 
           if i % b.size = 0 then
             let s = String.concat "" ["\n"; (string v); " "] in
-            let _ = printf "%s" s in printHelp res
+            let _ = printf "%s" s in printHelp vs (i - 1)
           else
             let s = String.concat "" [string v; " "] in
-            let _ = printf "%s" s in printHelp res
+            let _ = printf "%s" s in printHelp vs (i - 1)
       | [] -> printf "\n"
     in
-    printHelp b.allCells
+    printHelp b.cells (b.size * b.size - 1)
 
 (* generate a random borad with s' and clues c *)
-let randBoard s' (c: Cell list) =
-  let b = SudokuBoard.construct s' c [] in
+let randBoard s' clue =
   let s = s' * s' in
-  let maxIter = s * s - c.Length in
-  let maxInd = s * s - 1 in
+  let maxId = s * s - 1 in
   let maxVal = s in
-  (*
-  let rec findInd n l l' =
-    match n with
-      0 -> l
-    | _ -> 
-      let ni = Rand.Next (0, maxInd + 1) in
-        if List.contains ni l' then
-          findInd (n - 1) l l'
-        else
-          findInd (n - 1) ((ni, Rand.Next(1, maxVal + 1)) :: l) (ni :: l')
-  in
-  *)
-  let rec randFill inds =
+  let clue = List.sortByDescending (fun (i, _) -> i) clue in
+  let rec randFill inds clue cells =
     match inds with
-    | [] -> []
-    | x :: xs -> (x, Rand.Next (1, maxVal + 1)) :: randFill xs
+    | 0 -> cells
+    | n -> 
+      match List.head clue with (i, v) ->
+        if i = inds then 
+          randFill (inds - 1) (List.tail clue) (v :: cells)
+        else
+          let v = Rand.Next(0, maxVal + 1) in
+          randFill (inds - 1) (List.tail clue) (v :: cells)
   in
-  SudokuBoard.construct s' c (randFill b.getFillInds)
+  SudokuBoard.construct s' clue (randFill b.getFillInds)
 
 (* genenrate n random boards *)
 let rec randBoards n s' c =

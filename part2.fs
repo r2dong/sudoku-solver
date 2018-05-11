@@ -448,3 +448,116 @@ b.print
 // TODO: check solution before reproduce
 // TODO: increase rate of mutation
 // TODO: 100 roudns of iteration may still be small
+let easy1 = [
+  (0, 2);
+  (3, 8);
+  (4, 1);
+  (5, 6);
+  (6, 4);
+  (10, 5);
+  (14, 3);
+  (18, 7);
+  (20, 6);
+  (21, 5);
+  (22, 9);
+  (24, 3);
+  (29, 9);
+  (30, 1);
+  (31, 7);
+  (33, 2);
+  (37, 3);
+  (38, 5);
+  (42, 1);
+  (43, 4);
+  (47, 7);
+  (49, 4);
+  (50, 5);
+  (51, 9);
+  (56, 8);
+  (58, 3);
+  (59, 7);
+  (60, 6);
+  (62, 4);
+  (66, 4);
+  (70, 8);
+  (74, 4);
+  (75, 6);
+  (76, 8);
+  (77, 2);
+  (80, 1);
+]
+
+let solvedRaw = [
+  3; 8; 6; 7; 4; 1; 2; 5; 9;
+  2; 5; 4; 3; 9; 8; 7; 1; 6;
+  7; 1; 9; 6; 5; 2; 3; 8; 4;
+  6; 2; 8; 5; 7; 3; 9; 4; 1;
+  5; 3; 7; 4; 1; 9; 6; 2; 8;
+  4; 9; 1; 8; 2; 6; 5; 7; 3;
+  1; 4; 5; 9; 6; 7; 8; 3; 2;
+  9; 7; 3; 2; 8; 4; 1; 6; 5;
+  8; 6; 2; 1; 3; 5; 4; 9; 7;
+]
+let solved = [for i in 0 .. 80 -> (i, List.item i solvedRaw)]
+let almostSolved = [for i in 0 .. 74 -> (i, List.item i solvedRaw)]
+
+(*
+let ws301 = SudokuBoard.construct 3 ws301Clues []
+ws301.print
+
+let ws301' = SudokuBoard.construct 3 ws301Clues [(18, 1); (54, 8); (79, 4); (53, 9)]
+ws301'.print
+
+// test getInd
+let r = ws301.getInd 54
+let r3 = ws301.getInd 70
+
+// test allCells
+let r1 = ws301.allCells
+
+// test setCell
+let w1 = ws301.set 0 1
+w1.print
+// let w2 = w1.set 80 1 // should fail
+// let w3 = w1.set 79 10 // should fail
+let w4 = w1.set 79 5
+w4.print
+
+// test isFilled
+let b1 = w4.isFilled 59 // true
+let b2 = w4.isFilled 80 // true
+let b3 = w4.isFilled 79 // true
+let b4 = w4.isFilled 78 // false
+
+// test getCell
+let g1 = w4.getCell 64 // 1
+let g2 = w4.getCell 27 // 1
+let g3 = w4.getCell 0 // 1
+let g4 = w4.getCell 79 // 5
+
+// test getCellAttacks
+let a1 = w4.getCellAttacks 0 // 1
+let w5 = w4.set 76 1
+let a2 = w5.getCellAttacks 76 // 2
+
+// test getAttacks
+let a3 = w5.allAttacks
+
+// test randBoard
+let rand1 = randBoard 3 ws301Clues
+rand1.print
+rand1.allCells
+
+// test fitness function
+rand1.fitness
+*)
+
+// let ans = genetic 10 10 3 ws301
+let b = SudokuBoard.construct 3 solved []
+b.print
+
+//let ans = genetic 1000 10 3 easy1
+
+// TODO: check solution before reproduce
+// TODO: increase rate of mutation
+// TODO: 100 roudns of iteration may still be small
